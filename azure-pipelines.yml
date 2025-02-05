@@ -6,6 +6,9 @@ pool:
 
 variables:
   - group: provenant-variables
+  DOCKER_REGISTRY: 'ghcr.io'
+  DOCKER_IMAGE_NAME: '$(DOCKER_REGISTRY)/$(GITHUB_USERNAME)/provenant'
+  DOCKER_IMAGE_TAG: '$(Build.BuildId)'
 
 stages:
   - stage: Build
@@ -26,13 +29,15 @@ stages:
 
           - task: Docker@2
             inputs:
-              containerRegistry: 'dockerHub'
-              repository: '$(DOCKER_REPOSITORY)'
+              containerRegistry: 'github'
+              repository: '$(GITHUB_USERNAME)/provenant'
               command: 'buildAndPush'
               Dockerfile: 'api/Dockerfile'
               tags: |
                 $(Build.BuildId)
                 latest
+            env:
+              CR_PAT: $(GITHUB_TOKEN)
             displayName: 'Build and push Docker image'
 
   - stage: Deploy
