@@ -1,0 +1,56 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: provenant-variables
+
+stages:
+  - stage: Build
+    jobs:
+      - job: BuildAndTest
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+            displayName: 'Install Node.js'
+
+          - script: |
+              cd api
+              npm install
+              npm run build
+              npm run test
+            displayName: 'Build and test API'
+
+          - task: Docker@2
+            inputs:
+              containerRegistry: 'dockerHub'
+              repository: '$(DOCKER_REPOSITORY)'
+              command: 'buildAndPush'
+              Dockerfile: 'api/Dockerfile'
+              tags: |
+                $(Build.BuildId)
+                latest
+            displayName: 'Build and push Docker image'
+
+  - stage: Deploy
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - deployment: DeployToAKS
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: KubernetesManifest@0
+                  inputs:
+                    action: 'deploy'
+                    kubernetesServiceConnection: 'aks-connection'
+                    namespace: 'provenant'
+                    manifests: |
+                      kubernetes/*.yml
+                    containers: |
+                      $(DOCKER_REPOSITORY):$(Build.BuildId)
